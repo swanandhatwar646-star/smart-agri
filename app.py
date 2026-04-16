@@ -16,25 +16,74 @@ if __name__ == "__main__":
 else:
     BASE_DIR = Path.cwd()
 
-# Try multiple possible locations for data and models
-possible_base_dirs = [
-    BASE_DIR,
-    Path("/mount/src/smart-agri"),
-    Path("/app"),
-    Path.cwd()
-]
-
-DATA_DIR = None
-MODEL_DIR = None
-
-for base_dir in possible_base_dirs:
-    data_path = base_dir / "data"
-    model_path = base_dir / "models"
+# Comprehensive directory scanning for deployment
+def find_data_and_model_dirs():
+    """Find data and model directories by scanning the filesystem"""
     
-    if data_path.exists() and model_path.exists():
-        DATA_DIR = data_path
-        MODEL_DIR = model_path
-        break
+    # Start from current working directory and scan up
+    current_dir = Path.cwd()
+    search_paths = []
+    
+    # Add current directory and parents
+    temp_dir = current_dir
+    for _ in range(5):  # Go up max 5 levels
+        search_paths.extend([
+            temp_dir,
+            temp_dir / "data",
+            temp_dir / "models",
+            temp_dir / "src",
+            temp_dir / "app"
+        ])
+        temp_dir = temp_dir.parent
+    
+    # Add common deployment paths
+    search_paths.extend([
+        Path("/mount/src/smart-agri"),
+        Path("/app"),
+        Path("/workspace"),
+        Path("/home/app"),
+        BASE_DIR
+    ])
+    
+    # Look for model files and data files
+    model_files_found = []
+    data_files_found = []
+    
+    for path in search_paths:
+        if path.exists() and path.is_dir():
+            # Check for model files
+            for model_file in ["crop_recommendation_model.pkl", "irrigation_model.pkl", "yield_prediction_model.pkl"]:
+                if (path / model_file).exists():
+                    model_files_found.append(path)
+                    break
+            
+            # Check for data files
+            for data_file in ["Crop_Recommendation.csv", "irrigation_recommendation_dataset.csv", "indian crop production.csv"]:
+                if (path / data_file).exists():
+                    data_files_found.append(path)
+                    break
+    
+    # Find common parent directories
+    model_dir = None
+    data_dir = None
+    
+    if model_files_found:
+        # Find the directory that contains all model files
+        for path in model_files_found:
+            if all((path / f).exists() for f in ["crop_recommendation_model.pkl", "irrigation_model.pkl", "yield_prediction_model.pkl"]):
+                model_dir = path
+                break
+    
+    if data_files_found:
+        # Find the directory that contains all data files
+        for path in data_files_found:
+            if all((path / f).exists() for f in ["Crop_Recommendation.csv", "irrigation_recommendation_dataset.csv", "indian crop production.csv"]):
+                data_dir = path
+                break
+    
+    return data_dir, model_dir
+
+DATA_DIR, MODEL_DIR = find_data_and_model_dirs()
 
 # Fallback to original paths if not found
 if DATA_DIR is None:
@@ -45,10 +94,27 @@ if MODEL_DIR is None:
 # Debug information for deployment
 if __name__ != "__main__":
     st.write(f"Debug: Working directory: {Path.cwd()}")
+    st.write(f"Debug: BASE_DIR: {BASE_DIR}")
     st.write(f"Debug: DATA_DIR: {DATA_DIR}")
     st.write(f"Debug: MODEL_DIR: {MODEL_DIR}")
     st.write(f"Debug: Data dir exists: {DATA_DIR.exists()}")
     st.write(f"Debug: Model dir exists: {MODEL_DIR.exists()}")
+    
+    # Show files in current directory
+    try:
+        current_files = list(Path.cwd().iterdir())
+        st.write(f"Debug: Files in current directory: {[f.name for f in current_files[:10]]}")
+    except:
+        st.write("Debug: Could not list current directory files")
+    
+    # Show parent directory structure
+    try:
+        parent = Path.cwd().parent
+        if parent.exists():
+            parent_files = list(parent.iterdir())
+            st.write(f"Debug: Files in parent directory: {[f.name for f in parent_files[:10]]}")
+    except:
+        st.write("Debug: Could not list parent directory files")
 
 
 def numeric_pipeline() -> Pipeline:
