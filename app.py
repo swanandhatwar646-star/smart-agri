@@ -1,4 +1,6 @@
 from pathlib import Path
+import os
+import sys
 
 import joblib
 import pandas as pd
@@ -8,8 +10,12 @@ from sklearn.impute import SimpleImputer
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import LabelEncoder, OneHotEncoder, StandardScaler
 
-
-BASE_DIR = Path(__file__).resolve().parent
+# Handle deployment environment paths
+if __name__ == "__main__":
+    BASE_DIR = Path(__file__).resolve().parent
+else:
+    BASE_DIR = Path.cwd()
+    
 DATA_DIR = BASE_DIR / "data"
 MODEL_DIR = BASE_DIR / "models"
 
@@ -108,153 +114,193 @@ def estimate_irrigation_amount(
 
 @st.cache_resource(show_spinner=False)
 def load_models() -> dict[str, object]:
-    return {
-        "crop": joblib.load(MODEL_DIR / "crop_recommendation_model.pkl"),
-        "irrigation": joblib.load(MODEL_DIR / "irrigation_model.pkl"),
-        "yield": joblib.load(MODEL_DIR / "yield_prediction_model.pkl"),
-    }
+    try:
+        models = {}
+        model_files = {
+            "crop": "crop_recommendation_model.pkl",
+            "irrigation": "irrigation_model.pkl", 
+            "yield": "yield_prediction_model.pkl"
+        }
+        
+        for model_name, filename in model_files.items():
+            model_path = MODEL_DIR / filename
+            if not model_path.exists():
+                st.error(f"Model file not found: {model_path}")
+                st.stop()
+            models[model_name] = joblib.load(model_path)
+            
+        return models
+    except Exception as e:
+        st.error(f"Error loading models: {str(e)}")
+        st.stop()
 
 
 @st.cache_resource(show_spinner=False)
 def prepare_crop_artifacts() -> dict[str, object]:
-    dataframe = pd.read_csv(DATA_DIR / "Crop_Recommendation.csv")
-    feature_columns = [
-        "Nitrogen",
-        "Phosphorus",
-        "Potassium",
-        "Temperature",
-        "Humidity",
-        "pH_Value",
-        "Rainfall",
-    ]
+    try:
+        crop_data_path = DATA_DIR / "Crop_Recommendation.csv"
+        if not crop_data_path.exists():
+            st.error(f"Crop data file not found: {crop_data_path}")
+            st.stop()
+        dataframe = pd.read_csv(crop_data_path)
+        
+        feature_columns = [
+            "Nitrogen",
+            "Phosphorus",
+            "Potassium",
+            "Temperature",
+            "Humidity",
+            "pH_Value",
+            "Rainfall",
+        ]
 
-    encoder = LabelEncoder()
-    encoder.fit(dataframe["Crop"])
+        encoder = LabelEncoder()
+        encoder.fit(dataframe["Crop"])
 
-    stats = {
-        column: {
-            "min": float(dataframe[column].min()),
-            "max": float(dataframe[column].max()),
-            "default": float(dataframe[column].median()),
+        stats = {
+            column: {
+                "min": float(dataframe[column].min()),
+                "max": float(dataframe[column].max()),
+                "default": float(dataframe[column].median()),
+            }
+            for column in feature_columns
         }
-        for column in feature_columns
-    }
 
-    return {"encoder": encoder, "feature_columns": feature_columns, "stats": stats}
+        return {"encoder": encoder, "feature_columns": feature_columns, "stats": stats}
+    except Exception as e:
+        st.error(f"Error preparing crop artifacts: {str(e)}")
+        st.stop()
 
 
 @st.cache_resource(show_spinner=False)
 def prepare_irrigation_artifacts() -> dict[str, object]:
-    dataframe = pd.read_csv(DATA_DIR / "irrigation_recommendation_dataset.csv")
+    try:
+        irrigation_data_path = DATA_DIR / "irrigation_recommendation_dataset.csv"
+        if not irrigation_data_path.exists():
+            st.error(f"Irrigation data file not found: {irrigation_data_path}")
+            st.stop()
+        dataframe = pd.read_csv(irrigation_data_path)
 
-    X = dataframe.drop(columns="irrigation_required")
-    y = dataframe["irrigation_required"]
+        X = dataframe.drop(columns="irrigation_required")
+        y = dataframe["irrigation_required"]
 
-    # Use 70% of data for preprocessing setup
-    sample_size = int(len(X) * 0.7)
-    X_train = X.head(sample_size)
+        # Use 70% of data for preprocessing setup
+        sample_size = int(len(X) * 0.7)
+        X_train = X.head(sample_size)
 
-    numeric_columns = [
-        "Temperature",
-        "Humidity",
-        "Rainfall",
-        "soil_moisture",
-        "water_required_mm",
-    ]
-    categorical_columns = ["Crop", "soil_type", "growth_stage"]
-
-    preprocessor = ColumnTransformer(
-        [
-            ("numeric", numeric_pipeline(), numeric_columns),
-            ("categorical", categorical_pipeline(), categorical_columns),
+        numeric_columns = [
+            "Temperature",
+            "Humidity",
+            "Rainfall",
+            "soil_moisture",
+            "water_required_mm",
         ]
-    )
-    preprocessor.fit(X_train)
+        categorical_columns = ["Crop", "soil_type", "growth_stage"]
 
-    stats = {
-        column: {
-            "min": float(dataframe[column].min()),
-            "max": float(dataframe[column].max()),
-            "default": float(dataframe[column].median()),
+        preprocessor = ColumnTransformer(
+            [
+                ("numeric", numeric_pipeline(), numeric_columns),
+                ("categorical", categorical_pipeline(), categorical_columns),
+            ]
+        )
+        preprocessor.fit(X_train)
+
+        stats = {
+            column: {
+                "min": float(dataframe[column].min()),
+                "max": float(dataframe[column].max()),
+                "default": float(dataframe[column].median()),
+            }
+            for column in ["Temperature", "Humidity", "Rainfall", "soil_moisture"]
         }
-        for column in ["Temperature", "Humidity", "Rainfall", "soil_moisture"]
-    }
 
-    choices = {
-        column: build_choice_mapping(dataframe[column])
-        for column in categorical_columns
-    }
-    defaults = {
-        column: dataframe[column].mode().iat[0]
-        for column in categorical_columns
-    }
+        choices = {
+            column: build_choice_mapping(dataframe[column])
+            for column in categorical_columns
+        }
+        defaults = {
+            column: dataframe[column].mode().iat[0]
+            for column in categorical_columns
+        }
 
-    return {
-        "preprocessor": preprocessor,
-        "stats": stats,
-        "choices": choices,
-        "defaults": defaults,
-    }
+        return {
+            "preprocessor": preprocessor,
+            "stats": stats,
+            "choices": choices,
+            "defaults": defaults,
+        }
+    except Exception as e:
+        st.error(f"Error preparing irrigation artifacts: {str(e)}")
+        st.stop()
 
 
 @st.cache_resource(show_spinner=False)
 def prepare_yield_artifacts() -> dict[str, object]:
-    dataframe = pd.read_csv(DATA_DIR / "indian crop production.csv")
-    dataframe = dataframe.drop(columns=["District "]).head(20000).copy()
-    dataframe = dataframe.dropna(subset=["Production"])
-    dataframe = dataframe.dropna(subset=["Crop"])
-    dataframe = dataframe.drop(columns=["Production"])
-    dataframe = clip_outliers(dataframe, ["Crop_Year", "Area ", "Yield"])
-    dataframe = dataframe.reset_index()
-    dataframe["Area"] = dataframe["Area "]
-    dataframe = dataframe.drop(columns=["Area "])
+    try:
+        yield_data_path = DATA_DIR / "indian crop production.csv"
+        if not yield_data_path.exists():
+            st.error(f"Yield data file not found: {yield_data_path}")
+            st.stop()
+        dataframe = pd.read_csv(yield_data_path)
+        
+        dataframe = dataframe.drop(columns=["District "]).head(20000).copy()
+        dataframe = dataframe.dropna(subset=["Production"])
+        dataframe = dataframe.dropna(subset=["Crop"])
+        dataframe = dataframe.drop(columns=["Production"])
+        dataframe = clip_outliers(dataframe, ["Crop_Year", "Area ", "Yield"])
+        dataframe = dataframe.reset_index()
+        dataframe["Area"] = dataframe["Area "]
+        dataframe = dataframe.drop(columns=["Area "])
 
-    X = dataframe.drop(columns=["Yield"])
-    y = dataframe["Yield"]
+        X = dataframe.drop(columns=["Yield"])
+        y = dataframe["Yield"]
 
-    # Use 80% of data for preprocessing setup
-    sample_size = int(len(X) * 0.8)
-    X_train = X.head(sample_size)
+        # Use 80% of data for preprocessing setup
+        sample_size = int(len(X) * 0.8)
+        X_train = X.head(sample_size)
 
-    numeric_columns = ["Crop_Year", "Area"]
-    categorical_columns = ["Crop", "State", "Season"]
+        numeric_columns = ["Crop_Year", "Area"]
+        categorical_columns = ["Crop", "State", "Season"]
 
-    preprocessor = ColumnTransformer(
-        [
-            ("numeric", numeric_pipeline(), numeric_columns),
-            ("categorical", categorical_pipeline(), categorical_columns),
-        ]
-    )
-    preprocessor.fit(X_train)
+        preprocessor = ColumnTransformer(
+            [
+                ("numeric", numeric_pipeline(), numeric_columns),
+                ("categorical", categorical_pipeline(), categorical_columns),
+            ]
+        )
+        preprocessor.fit(X_train)
 
-    stats = {
-        "Crop_Year": {
-            "min": int(dataframe["Crop_Year"].min()),
-            "max": int(dataframe["Crop_Year"].max()),
-            "default": int(dataframe["Crop_Year"].median()),
-        },
-        "Area": {
-            "min": float(dataframe["Area"].min()),
-            "max": float(dataframe["Area"].max()),
-            "default": float(dataframe["Area"].median()),
-        },
-    }
+        stats = {
+            "Crop_Year": {
+                "min": int(dataframe["Crop_Year"].min()),
+                "max": int(dataframe["Crop_Year"].max()),
+                "default": int(dataframe["Crop_Year"].median()),
+            },
+            "Area": {
+                "min": float(dataframe["Area"].min()),
+                "max": float(dataframe["Area"].max()),
+                "default": float(dataframe["Area"].median()),
+            },
+        }
 
-    choices = {
-        column: build_choice_mapping(dataframe[column])
-        for column in categorical_columns
-    }
-    defaults = {
-        column: dataframe[column].mode().iat[0]
-        for column in categorical_columns
-    }
+        choices = {
+            column: build_choice_mapping(dataframe[column])
+            for column in categorical_columns
+        }
+        defaults = {
+            column: dataframe[column].mode().iat[0]
+            for column in categorical_columns
+        }
 
-    return {
-        "preprocessor": preprocessor,
-        "stats": stats,
-        "choices": choices,
-        "defaults": defaults,
-    }
+        return {
+            "preprocessor": preprocessor,
+            "stats": stats,
+            "choices": choices,
+            "defaults": defaults,
+        }
+    except Exception as e:
+        st.error(f"Error preparing yield artifacts: {str(e)}")
+        st.stop()
 
 
 def set_app_style() -> None:
