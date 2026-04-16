@@ -283,6 +283,15 @@ def prepare_crop_artifacts() -> dict[str, object]:
 @st.cache_resource(show_spinner=False)
 def prepare_irrigation_artifacts() -> dict[str, object]:
     try:
+        # Load saved preprocessor instead of recreating it
+        preprocessor_path = MODEL_DIR / "irrigation_preprocessor.pkl"
+        if preprocessor_path.exists():
+            preprocessor = joblib.load(preprocessor_path)
+        else:
+            st.error(f"Irrigation preprocessor not found: {preprocessor_path}")
+            st.error("Please ensure irrigation_preprocessor.pkl is uploaded to models directory")
+            st.stop()
+            
         irrigation_data_path = DATA_DIR / "irrigation_recommendation_dataset.csv"
         if not irrigation_data_path.exists():
             st.error(f"Irrigation data file not found: {irrigation_data_path}")
@@ -304,33 +313,6 @@ def prepare_irrigation_artifacts() -> dict[str, object]:
             "water_required_mm",
         ]
         categorical_columns = ["Crop", "soil_type", "growth_stage"]
-
-        # Define all possible categories that the model was trained on
-        all_crop_categories = [
-            'Apple', 'Banana', 'Blackgram', 'ChickPea', 'Grapes', 
-            'KidneyBeans', 'Lentil', 'Maize', 'Mango', 'MothBeans', 
-            'MungBean', 'Muskmelon', 'PigeonPeas', 'Pomegranate', 
-            'Rice', 'Watermelon'
-        ]
-        
-        all_soil_type_categories = ['Clay', 'Loamy', 'Sandy']
-        all_growth_stage_categories = ['Early', 'Late', 'Mid']
-        
-        # Create categorical pipeline with all categories
-        categorical_pipeline_fixed = Pipeline(
-            steps=[
-                ("imputation", SimpleImputer(strategy="most_frequent")),
-                ("encoding", OneHotEncoder(categories=[all_crop_categories, all_soil_type_categories, all_growth_stage_categories], handle_unknown='ignore')),
-            ]
-        )
-
-        preprocessor = ColumnTransformer(
-            [
-                ("numeric", numeric_pipeline(), numeric_columns),
-                ("categorical", categorical_pipeline_fixed, categorical_columns),
-            ]
-        )
-        preprocessor.fit(X_train)
 
         stats = {
             column: {
@@ -389,46 +371,14 @@ def prepare_yield_artifacts() -> dict[str, object]:
         numeric_columns = ["Crop_Year", "Area"]
         categorical_columns = ["Crop", "State", "Season"]
 
-        # Define all possible categories that yield model was trained on
-        all_yield_crops = [
-            'Arecanut', 'Arhar/Tur', 'Bajra', 'Banana', 'Black pepper', 'Cashewnut', 
-            'Castor seed', 'Coconut ', 'Coriander', 'Cotton(lint)', 'Cowpea(Lobia)', 
-            'Dry chillies', 'Garlic', 'Ginger', 'Gram', 'Groundnut', 'Guar seed', 
-            'Horse-gram', 'Jowar', 'Linseed', 'Maize', 'Masoor', 'Mesta', 
-            'Moong(Green Gram)', 'Niger seed', 'Oilseeds total', 'Onion', 
-            'Other Rabi pulses', 'Other Kharif pulses', 'Potato', 'Ragi', 
-            'Rapeseed &Mustard', 'Rice', 'Safflower', 'Sesamum', 
-            'Small millets', 'Soyabean', 'Sugarcane', 'Sunflower', 
-            'Sweet potato', 'Tapioca', 'Tobacco', 'Turmeric', 'Urad', 'other oilseeds'
-        ]
-        
-        all_yield_states = [
-            'Andaman and Nicobar Island', 'Andhra Pradesh', 'Arunachal Pradesh', 'Assam', 
-            'Bihar', 'Chandigarh', 'Chhattisgarh', 'Dadra and Nagar Haveli', 
-            'Goa', 'Gujarat', 'Haryana', 'Himachal Pradesh', 'Jammu and Kashmir ', 
-            'Jharkhand', 'Karnataka', 'Kerala', 'Madhya Pradesh', 'Maharashtra', 
-            'Manipur', 'Meghalaya', 'Mizoram', 'Nagaland', 'NCT of Delhi', 
-            'Odisha', 'Puducherry', 'Punjab', 'Rajasthan', 'Sikkim', 
-            'Tamil Nadu', 'Telangana', 'Tripura', 'Uttar Pradesh', 'Uttarakhand', 
-            'West Bengal'
-        ]
-        
-        all_yield_seasons = ['Autumn ', 'Kharif ', 'Rabi ', 'Summer ', 'Whole Year ']
-        
-        categorical_pipeline_yield = Pipeline(
-            steps=[
-                ("imputation", SimpleImputer(strategy="most_frequent")),
-                ("encoding", OneHotEncoder(categories=[all_yield_crops, all_yield_states, all_yield_seasons], handle_unknown='ignore')),
-            ]
-        )
-
-        preprocessor = ColumnTransformer(
-            [
-                ("numeric", numeric_pipeline(), numeric_columns),
-                ("categorical", categorical_pipeline_yield, categorical_columns),
-            ]
-        )
-        preprocessor.fit(X_train)
+        # Load saved preprocessor instead of recreating it
+        preprocessor_path = MODEL_DIR / "yield_preprocessor.pkl"
+        if preprocessor_path.exists():
+            preprocessor = joblib.load(preprocessor_path)
+        else:
+            st.error(f"Yield preprocessor not found: {preprocessor_path}")
+            st.error("Please ensure yield_preprocessor.pkl is uploaded to models directory")
+            st.stop()
 
         stats = {
             "Crop_Year": {
@@ -716,25 +666,7 @@ def render_irrigation_page(model: object, artifacts: dict[str, object]) -> None:
         ]
     )
 
-    # Debug information for feature mismatch
-    st.write(f"Debug: Input features: {list(input_frame.columns)}")
-    st.write(f"Debug: Input shape: {input_frame.shape}")
-    
     transformed_input = artifacts["preprocessor"].transform(input_frame)
-    st.write(f"Debug: Transformed shape: {transformed_input.shape}")
-    
-    # Get feature names from preprocessor
-    try:
-        feature_names = artifacts["preprocessor"].get_feature_names_out()
-        st.write(f"Debug: Feature names: {list(feature_names)}")
-    except:
-        st.write("Debug: Could not get feature names")
-    
-    # Check model expected features
-    if hasattr(model, 'n_features_in_'):
-        st.write(f"Debug: Model expects {model.n_features_in_} features")
-    elif hasattr(model, 'best_estimator_') and hasattr(model.best_estimator_, 'n_features_in_'):
-        st.write(f"Debug: Model expects {model.best_estimator_.n_features_in_} features")
     
     prediction = int(model.predict(transformed_input)[0])
 
@@ -835,26 +767,7 @@ def render_yield_page(model: object, artifacts: dict[str, object]) -> None:
         ]
     )
 
-    # Debug information for feature mismatch
-    st.write(f"Debug: Yield input features: {list(input_frame.columns)}")
-    st.write(f"Debug: Yield input shape: {input_frame.shape}")
-    
     transformed_input = artifacts["preprocessor"].transform(input_frame)
-    st.write(f"Debug: Yield transformed shape: {transformed_input.shape}")
-    
-    # Get feature names from preprocessor
-    try:
-        feature_names = artifacts["preprocessor"].get_feature_names_out()
-        st.write(f"Debug: Yield feature names: {list(feature_names)}")
-    except:
-        st.write("Debug: Could not get yield feature names")
-    
-    # Check model expected features
-    if hasattr(model, 'n_features_in_'):
-        st.write(f"Debug: Yield model expects {model.n_features_in_} features")
-    elif hasattr(model, 'best_estimator_') and hasattr(model.best_estimator_, 'n_features_in_'):
-        st.write(f"Debug: Yield model expects {model.best_estimator_.n_features_in_} features")
-    
     predicted_yield = float(model.predict(transformed_input)[0])
 
     st.success(f"Predicted yield: {predicted_yield:.2f}")
