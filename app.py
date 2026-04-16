@@ -15,9 +15,40 @@ if __name__ == "__main__":
     BASE_DIR = Path(__file__).resolve().parent
 else:
     BASE_DIR = Path.cwd()
+
+# Try multiple possible locations for data and models
+possible_base_dirs = [
+    BASE_DIR,
+    Path("/mount/src/smart-agri"),
+    Path("/app"),
+    Path.cwd()
+]
+
+DATA_DIR = None
+MODEL_DIR = None
+
+for base_dir in possible_base_dirs:
+    data_path = base_dir / "data"
+    model_path = base_dir / "models"
     
-DATA_DIR = BASE_DIR / "data"
-MODEL_DIR = BASE_DIR / "models"
+    if data_path.exists() and model_path.exists():
+        DATA_DIR = data_path
+        MODEL_DIR = model_path
+        break
+
+# Fallback to original paths if not found
+if DATA_DIR is None:
+    DATA_DIR = BASE_DIR / "data"
+if MODEL_DIR is None:
+    MODEL_DIR = BASE_DIR / "models"
+
+# Debug information for deployment
+if __name__ != "__main__":
+    st.write(f"Debug: Working directory: {Path.cwd()}")
+    st.write(f"Debug: DATA_DIR: {DATA_DIR}")
+    st.write(f"Debug: MODEL_DIR: {MODEL_DIR}")
+    st.write(f"Debug: Data dir exists: {DATA_DIR.exists()}")
+    st.write(f"Debug: Model dir exists: {MODEL_DIR.exists()}")
 
 
 def numeric_pipeline() -> Pipeline:
@@ -122,16 +153,27 @@ def load_models() -> dict[str, object]:
             "yield": "yield_prediction_model.pkl"
         }
         
+        # List all files in model directory for debugging
+        if MODEL_DIR.exists():
+            model_files_list = list(MODEL_DIR.glob("*.pkl"))
+            st.write(f"Debug: Found model files: {[f.name for f in model_files_list]}")
+        else:
+            st.error(f"Model directory does not exist: {MODEL_DIR}")
+            st.stop()
+        
         for model_name, filename in model_files.items():
             model_path = MODEL_DIR / filename
             if not model_path.exists():
                 st.error(f"Model file not found: {model_path}")
+                st.error(f"Available files in {MODEL_DIR}: {list(MODEL_DIR.iterdir()) if MODEL_DIR.exists() else 'Directory not found'}")
                 st.stop()
             models[model_name] = joblib.load(model_path)
             
         return models
     except Exception as e:
         st.error(f"Error loading models: {str(e)}")
+        st.error(f"MODEL_DIR: {MODEL_DIR}")
+        st.error(f"Working directory: {Path.cwd()}")
         st.stop()
 
 
