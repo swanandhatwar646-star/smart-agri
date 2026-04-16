@@ -664,7 +664,19 @@ def render_irrigation_page(model: object, artifacts: dict[str, object]) -> None:
         ]
     )
 
+    # Debug information for feature mismatch
+    st.write(f"Debug: Input features: {list(input_frame.columns)}")
+    st.write(f"Debug: Input shape: {input_frame.shape}")
+    
     transformed_input = artifacts["preprocessor"].transform(input_frame)
+    st.write(f"Debug: Transformed shape: {transformed_input.shape}")
+    
+    # Check model expected features
+    if hasattr(model, 'n_features_in_'):
+        st.write(f"Debug: Model expects {model.n_features_in_} features")
+    elif hasattr(model, 'best_estimator_') and hasattr(model.best_estimator_, 'n_features_in_'):
+        st.write(f"Debug: Model expects {model.best_estimator_.n_features_in_} features")
+    
     prediction = int(model.predict(transformed_input)[0])
 
     irrigation_probability = None
@@ -764,7 +776,19 @@ def render_yield_page(model: object, artifacts: dict[str, object]) -> None:
         ]
     )
 
+    # Debug information for feature mismatch
+    st.write(f"Debug: Yield input features: {list(input_frame.columns)}")
+    st.write(f"Debug: Yield input shape: {input_frame.shape}")
+    
     transformed_input = artifacts["preprocessor"].transform(input_frame)
+    st.write(f"Debug: Yield transformed shape: {transformed_input.shape}")
+    
+    # Check model expected features
+    if hasattr(model, 'n_features_in_'):
+        st.write(f"Debug: Yield model expects {model.n_features_in_} features")
+    elif hasattr(model, 'best_estimator_') and hasattr(model.best_estimator_, 'n_features_in_'):
+        st.write(f"Debug: Yield model expects {model.best_estimator_.n_features_in_} features")
+    
     predicted_yield = float(model.predict(transformed_input)[0])
 
     st.success(f"Predicted yield: {predicted_yield:.2f}")
