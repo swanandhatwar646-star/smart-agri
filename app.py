@@ -671,6 +671,13 @@ def render_irrigation_page(model: object, artifacts: dict[str, object]) -> None:
     transformed_input = artifacts["preprocessor"].transform(input_frame)
     st.write(f"Debug: Transformed shape: {transformed_input.shape}")
     
+    # Get feature names from preprocessor
+    try:
+        feature_names = artifacts["preprocessor"].get_feature_names_out()
+        st.write(f"Debug: Feature names: {list(feature_names)}")
+    except:
+        st.write("Debug: Could not get feature names")
+    
     # Check model expected features
     if hasattr(model, 'n_features_in_'):
         st.write(f"Debug: Model expects {model.n_features_in_} features")
@@ -782,6 +789,13 @@ def render_yield_page(model: object, artifacts: dict[str, object]) -> None:
     
     transformed_input = artifacts["preprocessor"].transform(input_frame)
     st.write(f"Debug: Yield transformed shape: {transformed_input.shape}")
+    
+    # Get feature names from preprocessor
+    try:
+        feature_names = artifacts["preprocessor"].get_feature_names_out()
+        st.write(f"Debug: Yield feature names: {list(feature_names)}")
+    except:
+        st.write("Debug: Could not get yield feature names")
     
     # Check model expected features
     if hasattr(model, 'n_features_in_'):
