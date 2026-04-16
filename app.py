@@ -305,10 +305,29 @@ def prepare_irrigation_artifacts() -> dict[str, object]:
         ]
         categorical_columns = ["Crop", "soil_type", "growth_stage"]
 
+        # Define all possible categories that the model was trained on
+        all_crop_categories = [
+            'Apple', 'Banana', 'Blackgram', 'ChickPea', 'Grapes', 
+            'KidneyBeans', 'Lentil', 'Maize', 'Mango', 'MothBeans', 
+            'MungBean', 'Muskmelon', 'PigeonPeas', 'Pomegranate', 
+            'Rice', 'Watermelon'
+        ]
+        
+        all_soil_type_categories = ['Clay', 'Loamy', 'Sandy']
+        all_growth_stage_categories = ['Early', 'Late', 'Mid']
+        
+        # Create categorical pipeline with all categories
+        categorical_pipeline_fixed = Pipeline(
+            steps=[
+                ("imputation", SimpleImputer(strategy="most_frequent")),
+                ("encoding", OneHotEncoder(categories=[all_crop_categories, all_soil_type_categories, all_growth_stage_categories], handle_unknown='ignore')),
+            ]
+        )
+
         preprocessor = ColumnTransformer(
             [
                 ("numeric", numeric_pipeline(), numeric_columns),
-                ("categorical", categorical_pipeline(), categorical_columns),
+                ("categorical", categorical_pipeline_fixed, categorical_columns),
             ]
         )
         preprocessor.fit(X_train)
@@ -370,10 +389,43 @@ def prepare_yield_artifacts() -> dict[str, object]:
         numeric_columns = ["Crop_Year", "Area"]
         categorical_columns = ["Crop", "State", "Season"]
 
+        # Define all possible categories that yield model was trained on
+        all_yield_crops = [
+            'Arecanut', 'Arhar/Tur', 'Bajra', 'Banana', 'Black pepper', 'Cashewnut', 
+            'Castor seed', 'Coconut ', 'Coriander', 'Cotton(lint)', 'Cowpea(Lobia)', 
+            'Dry chillies', 'Garlic', 'Ginger', 'Gram', 'Groundnut', 'Guar seed', 
+            'Horse-gram', 'Jowar', 'Linseed', 'Maize', 'Masoor', 'Mesta', 
+            'Moong(Green Gram)', 'Niger seed', 'Oilseeds total', 'Onion', 
+            'Other Rabi pulses', 'Other Kharif pulses', 'Potato', 'Ragi', 
+            'Rapeseed &Mustard', 'Rice', 'Safflower', 'Sesamum', 
+            'Small millets', 'Soyabean', 'Sugarcane', 'Sunflower', 
+            'Sweet potato', 'Tapioca', 'Tobacco', 'Turmeric', 'Urad', 'other oilseeds'
+        ]
+        
+        all_yield_states = [
+            'Andaman and Nicobar Island', 'Andhra Pradesh', 'Arunachal Pradesh', 'Assam', 
+            'Bihar', 'Chandigarh', 'Chhattisgarh', 'Dadra and Nagar Haveli', 
+            'Goa', 'Gujarat', 'Haryana', 'Himachal Pradesh', 'Jammu and Kashmir ', 
+            'Jharkhand', 'Karnataka', 'Kerala', 'Madhya Pradesh', 'Maharashtra', 
+            'Manipur', 'Meghalaya', 'Mizoram', 'Nagaland', 'NCT of Delhi', 
+            'Odisha', 'Puducherry', 'Punjab', 'Rajasthan', 'Sikkim', 
+            'Tamil Nadu', 'Telangana', 'Tripura', 'Uttar Pradesh', 'Uttarakhand', 
+            'West Bengal'
+        ]
+        
+        all_yield_seasons = ['Autumn ', 'Kharif ', 'Rabi ', 'Summer ', 'Whole Year ']
+        
+        categorical_pipeline_yield = Pipeline(
+            steps=[
+                ("imputation", SimpleImputer(strategy="most_frequent")),
+                ("encoding", OneHotEncoder(categories=[all_yield_crops, all_yield_states, all_yield_seasons], handle_unknown='ignore')),
+            ]
+        )
+
         preprocessor = ColumnTransformer(
             [
                 ("numeric", numeric_pipeline(), numeric_columns),
-                ("categorical", categorical_pipeline(), categorical_columns),
+                ("categorical", categorical_pipeline_yield, categorical_columns),
             ]
         )
         preprocessor.fit(X_train)
