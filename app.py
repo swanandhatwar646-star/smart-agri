@@ -283,15 +283,6 @@ def prepare_crop_artifacts() -> dict[str, object]:
 @st.cache_resource(show_spinner=False)
 def prepare_irrigation_artifacts() -> dict[str, object]:
     try:
-        # Load saved preprocessor instead of recreating it
-        preprocessor_path = MODEL_DIR / "irrigation_preprocessor.pkl"
-        if preprocessor_path.exists():
-            preprocessor = joblib.load(preprocessor_path)
-        else:
-            st.error(f"Irrigation preprocessor not found: {preprocessor_path}")
-            st.error("Please ensure irrigation_preprocessor.pkl is uploaded to models directory")
-            st.stop()
-            
         irrigation_data_path = DATA_DIR / "irrigation_recommendation_dataset.csv"
         if not irrigation_data_path.exists():
             st.error(f"Irrigation data file not found: {irrigation_data_path}")
@@ -313,6 +304,22 @@ def prepare_irrigation_artifacts() -> dict[str, object]:
             "water_required_mm",
         ]
         categorical_columns = ["Crop", "soil_type", "growth_stage"]
+
+        # Let OneHotEncoder learn from data to match training preprocessing
+        categorical_pipeline_fixed = Pipeline(
+            steps=[
+                ("imputation", SimpleImputer(strategy="most_frequent")),
+                ("encoding", OneHotEncoder(handle_unknown='ignore')),
+            ]
+        )
+
+        preprocessor = ColumnTransformer(
+            [
+                ("numeric", numeric_pipeline(), numeric_columns),
+                ("categorical", categorical_pipeline_fixed, categorical_columns),
+            ]
+        )
+        preprocessor.fit(X_train)
 
         stats = {
             column: {
@@ -371,14 +378,21 @@ def prepare_yield_artifacts() -> dict[str, object]:
         numeric_columns = ["Crop_Year", "Area"]
         categorical_columns = ["Crop", "State", "Season"]
 
-        # Load saved preprocessor instead of recreating it
-        preprocessor_path = MODEL_DIR / "yield_preprocessor.pkl"
-        if preprocessor_path.exists():
-            preprocessor = joblib.load(preprocessor_path)
-        else:
-            st.error(f"Yield preprocessor not found: {preprocessor_path}")
-            st.error("Please ensure yield_preprocessor.pkl is uploaded to models directory")
-            st.stop()
+        # Let OneHotEncoder learn from data to match training preprocessing
+        categorical_pipeline_yield = Pipeline(
+            steps=[
+                ("imputation", SimpleImputer(strategy="most_frequent")),
+                ("encoding", OneHotEncoder(handle_unknown='ignore')),
+            ]
+        )
+
+        preprocessor = ColumnTransformer(
+            [
+                ("numeric", numeric_pipeline(), numeric_columns),
+                ("categorical", categorical_pipeline_yield, categorical_columns),
+            ]
+        )
+        preprocessor.fit(X_train)
 
         stats = {
             "Crop_Year": {
@@ -535,7 +549,7 @@ def render_crop_page(model: object, artifacts: dict[str, object]) -> None:
             step=0.1,
         )
 
-        submitted = st.form_submit_button("Recommend crop", use_container_width=True)
+        submitted = st.form_submit_button("Recommend crop", width='stretch')
 
     if not submitted:
         return
@@ -565,7 +579,7 @@ def render_crop_page(model: object, artifacts: dict[str, object]) -> None:
     if confidence is not None:
         st.caption(f"Model confidence: {confidence:.1%}")
 
-    st.dataframe(input_frame, use_container_width=True, hide_index=True)
+    st.dataframe(input_frame, width='stretch', hide_index=True)
 
 
 def render_irrigation_page(model: object, artifacts: dict[str, object]) -> None:
@@ -634,7 +648,7 @@ def render_irrigation_page(model: object, artifacts: dict[str, object]) -> None:
             step=0.1,
         )
 
-        submitted = st.form_submit_button("Check irrigation need", use_container_width=True)
+        submitted = st.form_submit_button("Check irrigation need", width='stretch')
 
     if not submitted:
         return
@@ -667,7 +681,6 @@ def render_irrigation_page(model: object, artifacts: dict[str, object]) -> None:
     )
 
     transformed_input = artifacts["preprocessor"].transform(input_frame)
-    
     prediction = int(model.predict(transformed_input)[0])
 
     irrigation_probability = None
@@ -701,7 +714,7 @@ def render_irrigation_page(model: object, artifacts: dict[str, object]) -> None:
         f"rebuilds that notebook logic internally. Current derived value: {water_feature} mm."
     )
 
-    st.dataframe(input_frame, use_container_width=True, hide_index=True)
+    st.dataframe(input_frame, width='stretch', hide_index=True)
 
 
 def render_yield_page(model: object, artifacts: dict[str, object]) -> None:
@@ -750,7 +763,7 @@ def render_yield_page(model: object, artifacts: dict[str, object]) -> None:
             step=1.0,
         )
 
-        submitted = st.form_submit_button("Predict yield", use_container_width=True)
+        submitted = st.form_submit_button("Predict yield", width='stretch')
 
     if not submitted:
         return
@@ -776,7 +789,7 @@ def render_yield_page(model: object, artifacts: dict[str, object]) -> None:
     summary_columns[0].metric("Crop year", f"{crop_year}")
     summary_columns[1].metric("Area", f"{area:.2f}")
 
-    st.dataframe(input_frame, use_container_width=True, hide_index=True)
+    st.dataframe(input_frame, width='stretch', hide_index=True)
 
 
 def main() -> None:
