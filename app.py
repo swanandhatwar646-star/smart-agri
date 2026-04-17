@@ -219,14 +219,6 @@ def load_models() -> dict[str, object]:
             "yield": "yield_prediction_model.pkl"
         }
         
-        # List all files in model directory for debugging
-        if MODEL_DIR.exists():
-            model_files_list = list(MODEL_DIR.glob("*.pkl"))
-            st.write(f"Debug: Found model files: {[f.name for f in model_files_list]}")
-        else:
-            st.error(f"Model directory does not exist: {MODEL_DIR}")
-            st.stop()
-        
         for model_name, filename in model_files.items():
             model_path = MODEL_DIR / filename
             if not model_path.exists():
